@@ -32,8 +32,13 @@
       cursor: pointer;
       transition: transform 0.2s;
     }
-    .rotated {
-      transform: rotate(90deg);
+    .start {
+      background-color: #d1e7dd;
+      font-weight: bold;
+    }
+    .end {
+      background-color: #f8d7da;
+      font-weight: bold;
     }
     button.check-btn {
       margin-top: 20px;
@@ -60,15 +65,24 @@
         tile.className = "tile";
         tile.dataset.rotation = "0";
         tile.dataset.index = i;
-        const icon = pipeIcons[Math.floor(Math.random() * pipeIcons.length)];
-        tile.dataset.icon = icon;
-        tile.textContent = icon;
 
-        tile.addEventListener("click", () => {
-          let r = (parseInt(tile.dataset.rotation) + 90) % 360;
-          tile.dataset.rotation = r;
-          tile.style.transform = `rotate(${r}deg)`;
-        });
+        if (i === 0) {
+          tile.textContent = "🟢";
+          tile.classList.add("start");
+        } else if (i === gridSize * gridSize - 1) {
+          tile.textContent = "🏁";
+          tile.classList.add("end");
+        } else {
+          const icon = pipeIcons[Math.floor(Math.random() * pipeIcons.length)];
+          tile.dataset.icon = icon;
+          tile.textContent = icon;
+
+          tile.addEventListener("click", () => {
+            let r = (parseInt(tile.dataset.rotation) + 90) % 360;
+            tile.dataset.rotation = r;
+            tile.style.transform = `rotate(${r}deg)`;
+          });
+        }
 
         gridEl.appendChild(tile);
         tiles.push(tile);
@@ -76,7 +90,6 @@
     }
 
     function checkSolution() {
-      // 임시로 랜덤 체크 메시지만 출력 (나중에 연결 알고리즘 붙일 수 있음)
       resultEl.textContent = Math.random() > 0.5 ? "✅ 연결 성공!" : "❌ 연결되지 않았어요";
     }
 
