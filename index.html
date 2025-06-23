@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Pipe Puzzle Mini</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
@@ -14,23 +14,23 @@
     .grid {
       display: grid;
       grid-template-columns: repeat(4, 60px);
-      gap: 4px;
+      gap: 5px;
       justify-content: center;
       margin-top: 20px;
     }
     .tile {
       width: 60px;
       height: 60px;
+      font-size: 28px;
       background-color: #ffffff;
-      box-shadow: 0 0 4px rgba(0,0,0,0.1);
       border-radius: 6px;
+      box-shadow: 0 0 3px rgba(0,0,0,0.2);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 28px;
       user-select: none;
       cursor: pointer;
-      transition: transform 0.2s;
+      transition: transform 0.3s;
     }
     .start {
       background-color: #d1e7dd;
@@ -40,60 +40,149 @@
       background-color: #f8d7da;
       font-weight: bold;
     }
-    button.check-btn {
-      margin-top: 20px;
-    }
   </style>
 </head>
 <body>
   <h1 class="mb-3">🛠 Pipe Puzzle Mini</h1>
-  <p class="text-muted">타일을 회전해서 물길을 연결해보세요!</p>
+  <p class="text-muted">타일을 회전해 물길을 완성하세요!</p>
   <div id="grid" class="grid"></div>
-  <button class="btn btn-primary check-btn" onclick="checkSolution()">연결 확인</button>
-  <p id="result" class="fw-bold mt-3"></p>
+  <button class="btn btn-primary mt-3" onclick="checkPath()">연결 확인</button>
+  <p id="status" class="mt-3 fs-5 fw-bold"></p>
 
   <script>
-    const pipeIcons = ["┃", "━", "┏", "┓", "┛", "┗"];
     const gridSize = 4;
-    const gridEl = document.getElementById("grid");
-    const resultEl = document.getElementById("result");
-    const tiles = [];
+    const tileTypes = {
+      straight: {
+        icon: "━",
+        connections: [["left", "right"]],
+      },
+      vertical: {
+        icon: "┃",
+        connections: [["up", "down"]],
+      },
+      bend: {
+        icon: "┗", // 기본 모양: left-down
+        connections: [["left", "down"]],
+      }
+    };
+    const directions = {
+      up: [-1, 0],
+      down: [1, 0],
+      left: [0, -1],
+      right: [0, 1]
+    };
+    let board = [];
 
-    function createGrid() {
-      for (let i = 0; i < gridSize * gridSize; i++) {
-        const tile = document.createElement("div");
-        tile.className = "tile";
-        tile.dataset.rotation = "0";
-        tile.dataset.index = i;
+    function rotateDir(dir, times = 1) {
+      const order = ["up", "right", "down", "left"];
+      const idx = order.indexOf(dir);
+      return order[(idx + times) % 4];
+    }
 
-        if (i === 0) {
-          tile.textContent = "🟢";
-          tile.classList.add("start");
-        } else if (i === gridSize * gridSize - 1) {
-          tile.textContent = "🏁";
-          tile.classList.add("end");
-        } else {
-          const icon = pipeIcons[Math.floor(Math.random() * pipeIcons.length)];
-          tile.dataset.icon = icon;
-          tile.textContent = icon;
+    function getTileConnections(type, rotation) {
+      const conn = [];
+      tileTypes[type].connections.forEach(pair => {
+        const rotated = pair.map(d => rotateDir(d, rotation));
+        conn.push(rotated);
+      });
+      return conn;
+    }
 
-          tile.addEventListener("click", () => {
-            let r = (parseInt(tile.dataset.rotation) + 90) % 360;
-            tile.dataset.rotation = r;
-            tile.style.transform = `rotate(${r}deg)`;
-          });
+    function createBoard() {
+      const grid = document.getElementById("grid");
+      grid.innerHTML = "";
+      board = [];
+
+      for (let r = 0; r < gridSize; r++) {
+        board[r] = [];
+        for (let c = 0; c < gridSize; c++) {
+          const cell = document.createElement("div");
+          cell.classList.add("tile");
+          const isStart = r === 0 && c === 0;
+          const isEnd = r === gridSize - 1 && c === gridSize - 1;
+
+          if (isStart) {
+            cell.textContent = "🟢";
+            cell.classList.add("start");
+            board[r][c] = { type: "start", rotation: 0, el: cell };
+          } else if (isEnd) {
+            cell.textContent = "🏁";
+            cell.classList.add("end");
+            board[r][c] = { type: "end", rotation: 0, el: cell };
+          } else {
+            const keys = Object.keys(tileTypes);
+            const type = keys[Math.floor(Math.random() * keys.length)];
+            const rot = Math.floor(Math.random() * 4);
+            const icon = tileTypes[type].icon;
+
+            cell.textContent = icon;
+            cell.style.transform = `rotate(${rot * 90}deg)`;
+
+            board[r][c] = { type, rotation: rot, el: cell };
+
+            cell.addEventListener("click", () => {
+              const tile = board[r][c];
+              tile.rotation = (tile.rotation + 1) % 4;
+              cell.style.transform = `rotate(${tile.rotation * 90}deg)`;
+            });
+          }
+
+          grid.appendChild(cell);
         }
-
-        gridEl.appendChild(tile);
-        tiles.push(tile);
       }
     }
 
-    function checkSolution() {
-      resultEl.textContent = Math.random() > 0.5 ? "✅ 연결 성공!" : "❌ 연결되지 않았어요";
+    function checkPath() {
+      const visited = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
+
+      function dfs(r, c, fromDir = null) {
+        if (r < 0 || c < 0 || r >= gridSize || c >= gridSize || visited[r][c]) return false;
+        const tile = board[r][c];
+        if (!tile) return false;
+        visited[r][c] = true;
+
+        if (tile.type === "end") return true;
+        if (tile.type === "start") {
+          // Start: try all 4 directions
+          for (let dir of ["right", "down"]) {
+            const [dr, dc] = directions[dir];
+            if (dfs(r + dr, c + dc, opposite(dir))) return true;
+          }
+        } else {
+          const conns = getTileConnections(tile.type, tile.rotation);
+          for (let [inDir, outDir] of conns) {
+            if (fromDir && inDir !== fromDir) continue;
+            const [dr, dc] = directions[outDir];
+            const nr = r + dr;
+            const nc = c + dc;
+            const nextTile = (board[nr] || [])[nc];
+            if (!nextTile) continue;
+
+            const revDir = opposite(outDir);
+            const nextConns = nextTile.type === "end"
+              ? [[revDir, "none"]] // end has no output
+              : getTileConnections(nextTile.type, nextTile.rotation);
+
+            if (nextConns.some(([inD]) => inD === revDir)) {
+              if (dfs(nr, nc, revDir)) return true;
+            }
+          }
+        }
+
+        return false;
+      }
+
+      const result = dfs(0, 0);
+      document.getElementById("status").textContent = result
+        ? "✅ 연결 성공! 물이 도착지까지 흘렀습니다!"
+        : "❌ 아직 물길이 완성되지 않았어요.";
     }
 
-    createGrid();
+    function opposite(dir) {
+      return { up: "down", down: "up", left: "right", right: "left" }[dir];
+    }
+
+    createBoard();
   </script>
 </body>
 </html>
