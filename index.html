@@ -1,191 +1,603 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <title>Pipe Puzzle Mini</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <style>
-    body {
-      background-color: #f8f9fa;
-      padding-top: 50px;
-      text-align: center;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(4, 60px);
-      gap: 5px;
-      justify-content: center;
-      margin-top: 20px;
-    }
-    .tile {
-      width: 60px;
-      height: 60px;
-      font-size: 28px;
-      background-color: #ffffff;
-      border-radius: 6px;
-      box-shadow: 0 0 3px rgba(0,0,0,0.2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      user-select: none;
-      cursor: pointer;
-      transition: transform 0.3s;
-    }
-    .start {
-      background-color: #d1e7dd;
-      font-weight: bold;
-    }
-    .end {
-      background-color: #f8d7da;
-      font-weight: bold;
-    }
-  </style>
+    <meta charset="UTF-8" />
+    <title>파이프 퍼즐 미니</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding-top: 50px;
+            text-align: center;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 60px);
+            gap: 5px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .tile {
+            width: 60px;
+            height: 60px;
+            background-color: #ffffff;
+            border-radius: 6px;
+            box-shadow: 0 0 3px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            cursor: pointer;
+            transition: background-color 0.2s; /* 색상 전환만 남김 */
+            position: relative; /* SVG 위치 조정을 위해 */
+            overflow: hidden; /* SVG가 타일 밖으로 나가지 않도록 */
+        }
+
+        /* 게임이 끝났을 때 타일 클릭 비활성화 */
+        .game-over .tile:not(.start):not(.end) {
+            cursor: default;
+            pointer-events: none; /* 파이프 타일 클릭 비활성화 */
+        }
+
+
+        /* SVG 파이프 기본 스타일 */
+        .tile svg {
+            width: 100%;
+            height: 100%;
+            transition: transform 0.2s; /* SVG 회전 애니메이션 */
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .tile svg path {
+            stroke: #333; /* 파이프 선 색상 */
+            stroke-width: 8; /* 파이프 선 두께 */
+            fill: none; /* 파이프 내부 채우기 없음 */
+            stroke-linecap: round; /* 선 끝 모양 */
+            transition: stroke 0.2s; /* 선 색상 전환 애니메이션 */
+        }
+
+        /* 시작/끝 지점 SVG 화살표 색상 및 채우기 */
+        .tile.start svg path,
+        .tile.end svg path {
+            fill: #333; /* 화살표는 채우기 */
+            stroke: none; /* 선 없음 */
+        }
+
+        /* SVG 파이프 회전 */
+        .tile[data-type="straight"][data-rotation="0"] svg { transform: rotate(0deg); } /* │ */
+        .tile[data-type="straight"][data-rotation="1"] svg { transform: rotate(90deg); } /* ─ */
+        .tile[data-type="straight"][data-rotation="2"] svg { transform: rotate(180deg); } /* │ */
+        .tile[data-type="straight"][data-rotation="3"] svg { transform: rotate(270deg); } /* ─ */
+
+        .tile[data-type="bend"][data-rotation="0"] svg { transform: rotate(0deg); } /* └ */
+        .tile[data-type="bend"][data-rotation="1"] svg { transform: rotate(90deg); } /* ┌ */
+        .tile[data-type="bend"][data-rotation="2"] svg { transform: rotate(180deg); } /* ┐ */
+        .tile[data-type="bend"][data-rotation="3"] svg { transform: rotate(270deg); } /* ┘ */
+
+        /* 시작/끝 지점 SVG 화살표 회전 */
+        /* 기본적으로 'down' (아래 방향)을 향하도록 정의하고 회전 */
+        .tile.start[data-exit-dir="down"] svg { transform: rotate(0deg); }
+        .tile.start[data-exit-dir="right"] svg { transform: rotate(90deg); }
+        .tile.start[data-exit-dir="up"] svg { transform: rotate(180deg); }
+        .tile.start[data-exit-dir="left"] svg { transform: rotate(270deg); }
+
+        .tile.end[data-entry-dir="down"] svg { transform: rotate(180deg); } /* 아래에서 들어오는 화살표는 위를 향함 */
+        .tile.end[data-entry-dir="right"] svg { transform: rotate(270deg); } /* 오른쪽에서 들어오는 화살표는 왼쪽을 향함 */
+        .tile.end[data-entry-dir="up"] svg { transform: rotate(0deg); }     /* 위에서 들어오는 화살표는 아래를 향함 */
+        .tile.end[data-entry-dir="left"] svg { transform: rotate(90deg); }  /* 왼쪽에서 들어오는 화살표는 오른쪽을 향함 */
+
+
+        /* 시작/끝 지점 배경 색상 */
+        .start { background-color: #d1e7dd; } /* 연한 초록색 */
+        .end { background-color: #f8d7da; } /* 연한 빨간색 */
+
+        /* 경로 하이라이트 */
+        .path-highlight {
+            background-color: #a7d9b9 !important; /* 성공 경로 (진한 초록) */
+        }
+        .no-path-highlight {
+            background-color: #ffeeba !important; /* 연결 실패 부분 (연한 노랑) */
+        }
+
+        /* 물 흐름 애니메이션 */
+        .flowing-water path {
+            stroke: #4dc2f0 !important; /* 물 색상 */
+            animation: flow 1s linear infinite; /* 물 흐름 애니메이션 */
+            stroke-dasharray: 20 20; /* 물방울 효과 */
+        }
+        /* 시작/끝 지점 화살표 물 색상 */
+        .tile.start.flowing-water svg path,
+        .tile.end.flowing-water svg path {
+             fill: #4dc2f0 !important; /* 화살표도 물색으로 */
+        }
+
+
+        @keyframes flow {
+            to {
+                stroke-dashoffset: -40;
+            }
+        }
+
+        /* 디버그 정보 표시 스타일 */
+        #debugInfo {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            background-color: #f0f0f0;
+            text-align: left;
+            font-family: monospace;
+            white-space: pre-wrap; /* 줄바꿈 유지 */
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
 </head>
 <body>
-  <h1 class="mb-3">🛠 Pipe Puzzle Mini</h1>
-  <p class="text-muted">타일을 회전해 물길을 완성하세요!</p>
-  <div id="grid" class="grid"></div>
-  <button class="btn btn-primary mt-3" onclick="checkPath()">연결 확인</button>
-  <p id="status" class="mt-3 fs-5 fw-bold"></p>
+    <h1 class="mb-3">🛠 파이프 퍼즐 미니</h1>
+    <p class="text-muted">타일을 회전해 S에서 E까지 물길을 완성하세요!</p>
+    <div id="grid" class="grid"></div>
+    <button id="checkPathBtn" class="btn btn-primary mt-3">연결 확인</button>
+    <button id="newGameBtn" class="btn btn-secondary mt-3 ms-2">새 게임</button>
+    <p id="status" class="mt-3 fs-5 fw-bold"></p>
 
-  <script>
-    const gridSize = 4;
+    <div id="debugInfo">
+        <h3>디버그 정보:</h3>
+        <p>시작 지점 (S) exitDir: <span id="debug_start_exitDir"></span></p>
+        <p>종료 지점 (E) entryDir: <span id="debug_end_entryDir"></span></p>
+        <p id="debug_dfs_status"></p>
+    </div>
 
-    const tileTypes = {
-      straight: {
-        icon: "━",
-        connections: [["left", "right"]],
-      },
-      vertical: {
-        icon: "┃",
-        connections: [["up", "down"]],
-      },
-      bend: {
-        icon: "┗", // 기본 모양: left-down
-        connections: [["left", "down"]],
-      }
-    };
+    <script>
+        const gridSize = 4;
+        let board = []; // 게임 보드 상태를 저장할 2D 배열
+        let isGameOver = false; // 게임 종료 상태 플래그
 
-    const directions = {
-      up: [-1, 0],
-      down: [1, 0],
-      left: [0, -1],
-      right: [0, 1]
-    };
+        // 파이프 타입 정의 (SVG 경로)
+        const tileTypes = {
+            straight: {
+                // SVG path for a vertical straight pipe (center-top to center-bottom)
+                svgPath: '<path d="M30 0 V60"/>',
+                connections: [["up", "down"]], // 기본 연결은 위-아래
+            },
+            bend: {
+                // SVG path for a bend pipe (left-center to center-bottom)
+                svgPath: '<path d="M0 30 H30 V60"/>',
+                connections: [["left", "down"]], // 기본 연결은 왼쪽-아래
+            },
+            start: { // 시작 지점 화살표 (기본: 아래를 향함)
+                svgPath: '<path d="M30 0 V40 M20 30 L30 40 L40 30 Z"/>' // 선과 삼각형 화살표
+            },
+            end: { // 끝 지점 화살표 (기본: 아래에서 위로 들어오는 모양)
+                svgPath: '<path d="M30 60 V20 M20 30 L30 20 L40 30 Z"/>' // 선과 삼각형 화살표
+            }
+        };
 
-    let board = [];
+        // 방향 벡터 (row, col 변화량)
+        const directions = {
+            up: [-1, 0],
+            down: [1, 0],
+            left: [0, -1],
+            right: [0, 1]
+        };
 
-    function rotateDir(dir, times = 1) {
-      const order = ["up", "right", "down", "left"];
-      const idx = order.indexOf(dir);
-      return order[(idx + times) % 4];
-    }
+        // 반대 방향 매핑
+        const oppositeDir = {
+            up: "down",
+            down: "up",
+            left: "right",
+            right: "left"
+        };
 
-    function getTileConnections(type, rotation) {
-      const result = [];
-      tileTypes[type].connections.forEach(pair => {
-        const rotated = pair.map(d => rotateDir(d, rotation));
-        result.push(rotated);
-      });
-      return result;
-    }
+        // --- 유틸리티 함수 ---
 
-    function createBoard() {
-      const grid = document.getElementById("grid");
-      grid.innerHTML = "";
-      board = [];
+        // 특정 방향을 시계방향으로 회전
+        function rotateDir(dir, times = 1) {
+            const order = ["up", "right", "down", "left"];
+            const idx = order.indexOf(dir);
+            return order[(idx + times) % 4];
+        }
 
-      for (let r = 0; r < gridSize; r++) {
-        board[r] = [];
-        for (let c = 0; c < gridSize; c++) {
-          const cell = document.createElement("div");
-          cell.classList.add("tile");
-          const isStart = r === 0 && c === 0;
-          const isEnd = r === gridSize - 1 && c === gridSize - 1;
+        // 타일의 현재 회전값에 따른 실제 연결 방향들을 반환
+        // 반환 값은 [["dir1", "dir2"], ["dir3", "dir4"] ...] 형태
+        function getTileConnections(type, rotation) {
+            // 시작/끝 타일은 미리 정의된 exitDir/entryDir만 가짐, 회전과 무관
+            if (type === "start" || type === "end") return []; // connections 배열이 의미 없음
+            return tileTypes[type].connections.map(pair =>
+                pair.map(d => rotateDir(d, rotation))
+            );
+        }
 
-          if (isStart) {
-            cell.textContent = "🟢";
-            cell.classList.add("start");
-            board[r][c] = { type: "start", rotation: 0, el: cell };
-          } else if (isEnd) {
-            cell.textContent = "🏁";
-            cell.classList.add("end");
-            board[r][c] = { type: "end", rotation: 0, el: cell };
-          } else {
-            const keys = Object.keys(tileTypes);
-            const type = keys[Math.floor(Math.random() * keys.length)];
-            const rot = Math.floor(Math.random() * 4);
-            const icon = tileTypes[type].icon;
+        // 특정 타일이 주어진 방향으로 물을 받을 수 있는지 확인
+        function canReceiveWater(tile, direction) {
+            if (!tile) return false;
 
-            cell.textContent = icon;
-            cell.style.transform = `rotate(${rot * 90}deg)`;
+            if (tile.type === "start") {
+                // 시작 타일은 물을 받지 않고 내보내기만 함 (첫 DFS 호출 시 null 처리됨)
+                return false;
+            } else if (tile.type === "end") {
+                // 끝 타일은 entryDir로만 물을 받을 수 있음
+                return tile.entryDir === direction;
+            } else { // 일반 파이프
+                const connections = getTileConnections(tile.type, tile.rotation);
+                // 연결 쌍 중 하나라도 들어오는 방향을 포함하면 true
+                return connections.some(pair => pair.includes(direction));
+            }
+        }
 
-            board[r][c] = { type, rotation: rot, el: cell };
+        // (r1, c1)에서 (r2, c2)로의 방향 계산
+        function getDirection(r1, c1, r2, c2) {
+            if (r2 === r1 - 1) return "up";
+            if (r2 === r1 + 1) return "down";
+            if (c2 === c1 - 1) return "left";
+            if (c2 === c1 + 1) return "right";
+            return null; // 인접하지 않음
+        }
 
-            cell.addEventListener("click", () => {
-              const tile = board[r][c];
-              tile.rotation = (tile.rotation + 1) % 4;
-              cell.style.transform = `rotate(${tile.rotation * 90}deg)`;
+        // 두 방향을 연결하기 위한 타일 타입 및 회전값 결정
+        function getTileConfigFromDirs(fromDir, toDir) {
+            const pairs = {
+                // 직선 파이프 (수직 기본: rotation 0, 수평: rotation 1)
+                "up,down": {type: "straight", rotation: 0},
+                "down,up": {type: "straight", rotation: 0},
+                "left,right": {type: "straight", rotation: 1},
+                "right,left": {type: "straight", rotation: 1},
+
+                // 굽은 파이프 (기본: └ - left, down 연결)
+                "left,down": {type: "bend", rotation: 0}, // └
+                "down,left": {type: "bend", rotation: 0},
+
+                "up,right": {type: "bend", rotation: 1}, // ┌ (└을 90도 회전)
+                "right,up": {type: "bend", rotation: 1},
+
+                "right,down": {type: "bend", rotation: 2}, // ┐ (└을 180도 회전)
+                "down,right": {type: "bend", rotation: 2},
+
+                "left,up": {type: "bend", rotation: 3}, // ┘ (└을 270도 회전)
+                "up,left": {type: "bend", rotation: 3},
+            };
+            const key1 = `${fromDir},${toDir}`;
+            const key2 = `${toDir},${fromDir}`; // 반대 방향도 동일한 파이프
+
+            // 연결되는 두 방향에 따라 적절한 파이프 타입을 반환
+            // 만약 유효한 연결이 아니면 기본값으로 straight를 반환 (비정상 경로 대비)
+            return pairs[key1] || pairs[key2] || {type: "straight", rotation: 0};
+        }
+
+
+        // --- 게임 로직 ---
+
+        // 게임 보드를 초기화하고 렌더링
+        function createBoard() {
+            isGameOver = false; // 게임 시작 시 상태 초기화
+            $('#grid').empty().removeClass('game-over'); // 기존 그리드 비우기 및 클래스 제거
+            board = Array.from({length: gridSize}, () => Array(gridSize).fill(null));
+
+            // 1. 항상 풀 수 있는 경로 생성 (S -> E)
+            const solvablePath = [];
+            let r = 0, c = 0;
+            solvablePath.push([r, c]);
+            while (r !== gridSize - 1 || c !== gridSize - 1) {
+                const possibleMoves = [];
+                // 가능한 다음 칸이 격자 내에 있을 때만 이동
+                if (r + 1 < gridSize) possibleMoves.push("down");
+                if (c + 1 < gridSize) possibleMoves.push("right");
+                
+                // 끝에 도달했거나 더 이상 이동할 수 없으면 종료 (안전장치)
+                if (r === gridSize - 1 && c === gridSize - 1) break;
+                if (possibleMoves.length === 0) {
+                     // 만약 S에서 E로 가는 경로 생성이 막혔다면, 재시도 (매우 드물게 발생)
+                    r=0; c=0; solvablePath.length = 0; solvablePath.push([r,c]);
+                    continue; // 경로 재시도
+                }
+                
+                const move = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+                if (move === "down") r++;
+                else c++;
+                solvablePath.push([r, c]);
+            }
+
+            // 2. 경로에 따라 타일 배치 (S, E, 그리고 연결된 파이프)
+            for (let i = 0; i < solvablePath.length; i++) {
+                const [curR, curC] = solvablePath[i];
+                let tileData;
+
+                if (i === 0) { // 시작 타일 (S)
+                    const [nextR, nextC] = solvablePath[i + 1];
+                    const exitDir = getDirection(curR, curC, nextR, nextC);
+                    tileData = {type: "start", exitDir: exitDir, r: curR, c: curC};
+                } else if (i === solvablePath.length - 1) { // 끝 타일 (E)
+                    const [prevR, prevC] = solvablePath[i - 1];
+                    //const entryDir = getDirection(prevR, prevC, curR, curC);
+				    const entryDir = "up"; 
+                    tileData = {type: "end", entryDir: entryDir, r: curR, c: curC};
+                } else { // 중간 경로 타일
+                    const [prevR, prevC] = solvablePath[i - 1];
+                    const [nextR, nextC] = solvablePath[i + 1];
+                    const from = getDirection(prevR, prevC, curR, curC);
+                    const to = getDirection(curR, curC, nextR, nextC);
+                    const {type, rotation} = getTileConfigFromDirs(from, to);
+                    tileData = {type, rotation, r: curR, c: curC};
+                }
+                board[curR][curC] = tileData;
+            }
+
+            // 3. 나머지 칸을 무작위 타일로 채우고 DOM에 추가
+            for (let r = 0; r < gridSize; r++) {
+                for (let c = 0; c < gridSize; c++) {
+                    const existingTile = board[r][c];
+                    let tile;
+
+                    if (existingTile) {
+                        tile = existingTile; // 이미 경로에 배치된 타일
+                    } else { // 비어있는 칸 (무작위 타일)
+                        const types = ["straight", "bend"]; // 시작/끝 타일 제외
+                        const randomType = types[Math.floor(Math.random() * types.length)];
+                        const randomRotation = Math.floor(Math.random() * 4);
+                        tile = {type: randomType, rotation: randomRotation, r, c};
+                        board[r][c] = tile;
+                    }
+
+                    // DOM 요소 생성 및 속성 설정
+                    const $tileDiv = $('<div>')
+                        .addClass('tile')
+                        .attr('data-row', r)
+                        .attr('data-col', c);
+
+                    // SVG 아이콘 추가
+                    const svgHtml = `<svg viewbox="0 0 60 60">${tileTypes[tile.type].svgPath}</svg>`;
+                    $tileDiv.html(svgHtml);
+
+                    if (tile.type === "start") {
+                        $tileDiv.addClass('start').attr('data-exit-dir', tile.exitDir);
+                    } else if (tile.type === "end") {
+                        $tileDiv.addClass('end').attr('data-entry-dir', tile.entryDir);
+                    } else { // 일반 파이프
+                        $tileDiv.attr('data-type', tile.type)
+                                .attr('data-rotation', tile.rotation)
+                                .on('click', function() {
+                                    if (!isGameOver) { // 게임 오버가 아닐 때만 클릭 허용
+                                        rotateTile(r, c);
+                                    }
+                                });
+                    }
+
+                    tile.el = $tileDiv; // DOM 요소 참조 저장
+                    $('#grid').append($tileDiv);
+                }
+            }
+
+            // 4. S, E를 제외한 모든 파이프를 무작위로 섞기
+            board.flat().forEach(tile => {
+                if (tile && tile.type !== "start" && tile.type !== "end") {
+                    const randomRotations = Math.floor(Math.random() * 4);
+                    for (let i = 0; i < randomRotations; i++) {
+                        rotateTile(tile.r, tile.c, false); // 시각 업데이트 없이 회전
+                    }
+                }
             });
-          }
 
-          grid.appendChild(cell);
-        }
-      }
-    }
-
-    function opposite(dir) {
-      return { up: "down", down: "up", left: "right", right: "left" }[dir];
-    }
-
-    function checkPath() {
-      const visited = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
-
-      function dfs(r, c, fromDir = null) {
-        if (r < 0 || c < 0 || r >= gridSize || c >= gridSize || visited[r][c]) return false;
-        const tile = board[r][c];
-        visited[r][c] = true;
-
-        if (tile.type === "end") return true;
-
-        let connections = [];
-
-        if (tile.type === "start") {
-          connections = [["right"], ["down"]];
-        } else if (tile.type !== "end") {
-          connections = getTileConnections(tile.type, tile.rotation);
+            $('#status').text("물길을 연결해 주세요!");
+            updateDebugInfo(); // 디버그 정보 업데이트
         }
 
-        for (let pair of connections) {
-          const [inDir, outDir] = pair.length === 2 ? pair : [null, pair[0]];
-          if (fromDir && inDir && inDir !== fromDir) continue;
+        // 타일 회전 (논리적 rotation 업데이트 및 CSS 적용)
+        function rotateTile(r, c, updateStatus = true) {
+            const tile = board[r][c];
+            // 게임 오버 상태이거나 시작/끝 타일이면 회전 불가
+            if (!tile || tile.type === "start" || tile.type === "end" || isGameOver) return;
 
-          const [dr, dc] = directions[outDir];
-          const nr = r + dr;
-          const nc = c + dc;
-          const nextTile = board[nr]?.[nc];
-          if (!nextTile) continue;
+            tile.rotation = (tile.rotation + 1) % 4;
+            $(tile.el).attr('data-rotation', tile.rotation); // CSS가 SVG를 회전하도록 data-rotation 업데이트
 
-          const nextConnections = nextTile.type === "end"
-            ? [[opposite(outDir), "none"]]
-            : getTileConnections(nextTile.type, nextTile.rotation);
-
-          if (nextConnections.some(([nextIn]) => nextIn === opposite(outDir))) {
-            if (dfs(nr, nc, opposite(outDir))) return true;
-          }
+            if (updateStatus) {
+                $('#status').text("물길을 연결해 주세요!");
+                resetTileColors(); // 색상 초기화
+                updateDebugInfo(); // 디버그 정보 업데이트
+            }
         }
 
-        return false;
-      }
+        // 모든 타일 색상 초기화 (하이라이트 제거)
+        function resetTileColors() {
+            $('.tile').css('background-color', '') // Bootstrap 기본으로
+                      .removeClass('path-highlight no-path-highlight flowing-water'); /* flowing-water 제거 */
+            $('.start').css('background-color', ''); // 기본 CSS로 돌아감
+            $('.end').css('background-color', '');   // 기본 CSS로 돌아감
+        }
 
-      const success = dfs(0, 0);
-      document.getElementById("status").textContent = success
-        ? "✅ 연결 성공! 물이 도착지까지 흘렀습니다!"
-        : "❌ 아직 물길이 완성되지 않았어요.";
-    }
+        // --- 경로 확인 로직 (DFS) ---
+        function checkPath() {
+            resetTileColors(); // 이전 하이라이트 초기화
+            if (isGameOver) return; // 게임 종료 상태이면 다시 확인하지 않음
 
-    createBoard();
-  </script>
+            const visited = Array.from({length: gridSize}, () => Array(gridSize).fill(false));
+            const currentPath = []; // 현재 탐색 중인 경로
+            let dfsStatusMessage = ""; // DFS 진행 상황 메시지
+
+            // DFS 재귀 함수
+            // r, c: 현재 타일의 좌표
+            // incomingDir: 현재 타일로 물이 들어오는 방향 (null이면 시작 지점)
+            function dfs(r, c, incomingDir) {
+                // 1. 유효성 검사: 격자 밖, 이미 방문한 타일, 존재하지 않는 타일
+                if (r < 0 || c < 0 || r >= gridSize || c >= gridSize || visited[r][c]) {
+                    // console.log(`[DFS] (${r}, ${c}) - Invalid or already visited.`);
+                    return false;
+                }
+                const tile = board[r][c];
+                if (!tile) {
+                    // console.log(`[DFS] (${r}, ${c}) - No tile data.`);
+                    return false; // 타일 데이터가 없는 경우
+                }
+
+                // console.log(`[DFS] Visiting: (${r}, ${c}), Type: ${tile.type}, Incoming: ${incomingDir}, Rotation: ${tile.rotation || 'N/A'}`);
+
+                visited[r][c] = true; // 방문 표시
+                currentPath.push([r, c]); // 경로에 추가
+
+                // 2. 시작 타일 처리
+                if (tile.type === "start") {
+                    if (incomingDir !== null) { // 시작 타일에 다른 방향에서 들어오면 안 됨
+                        // console.log(`[START TILE] (${r}, ${c}) - Invalid incoming direction: ${incomingDir}`);
+                        currentPath.pop();
+                        return false;
+                    }
+
+                    const [dr, dc] = directions[tile.exitDir];
+                    const nextR = r + dr;
+                    const nextC = c + dc;
+                    
+                    // 다음 칸이 유효하고, 다음 칸이 현재 타일의 출구 방향을 받을 수 있는지 확인
+                    if (nextR >= 0 && nextR < gridSize && nextC >= 0 && nextC < gridSize) {
+                        const nextTile = board[nextR][nextC];
+                        if (nextTile && canReceiveWater(nextTile, oppositeDir[tile.exitDir])) {
+                            if (dfs(nextR, nextC, oppositeDir[tile.exitDir])) {
+                                return true; // 경로 발견
+                            }
+                        } else {
+                            // console.log(`[START TILE] (${r}, ${c}) -> (${nextR}, ${nextC}) - Next tile cannot receive water from ${oppositeDir[tile.exitDir]}`);
+                        }
+                    } else {
+                        // console.log(`[START TILE] (${r}, ${c}) -> (${nextR}, ${nextC}) - Next position out of bounds.`);
+                    }
+                }
+                // 3. 끝 타일 처리
+                else if (tile.type === "end") {
+                    dfsStatusMessage = `종료 지점 (${r}, ${c}) 도달.\n` +
+                                       `들어온 방향: ${incomingDir || '없음'}\n` +
+                                       `기대하는 방향: ${tile.entryDir || '없음'}`;
+                    if (incomingDir === tile.entryDir) {
+                        dfsStatusMessage += `\n✅ 성공: 들어온 방향 일치!`;
+                        return true; // 최종 목적지에 도달! 경로 발견
+                    } else {
+                        dfsStatusMessage += `\n❌ 실패: 들어온 방향 불일치!`;
+                        currentPath.pop(); // 일치하지 않으면 경로에서 제거하고 실패
+                        return false;
+                    }
+                }
+                // 4. 일반 파이프 타일 처리
+                else {
+                    // 현재 타일이 incomingDir로 물을 받을 수 있는지 확인
+                    if (!canReceiveWater(tile, incomingDir)) {
+                         // console.log(`[PIPE TILE] (${r}, ${c}) - Cannot receive water from ${incomingDir}`);
+                         currentPath.pop();
+                         return false;
+                    }
+
+                    const tileConnections = getTileConnections(tile.type, tile.rotation);
+                    let foundNextStep = false;
+
+                    for (let [conn1, conn2] of tileConnections) {
+                        let nextOutDir = null; // 현재 타일에서 나가는 방향
+
+                        // 현재 타일로 '들어온' 방향과 일치하는 연결 지점을 찾고, 그 '반대편'이 물이 '나가는' 방향이 됨
+                        if (conn1 === incomingDir) nextOutDir = conn2;
+                        else if (conn2 === incomingDir) nextOutDir = conn1;
+
+                        if (nextOutDir) { // 물이 나갈 수 있는 유효한 방향을 찾았다면
+                            const [dr, dc] = directions[nextOutDir];
+                            const nextR = r + dr;
+                            const nextC = c + dc;
+
+                            // 다음 칸의 유효성 검사 (격자 범위 내)
+                            if (nextR >= 0 && nextR < gridSize && nextC >= 0 && nextC < gridSize) {
+                                const nextTile = board[nextR][nextC];
+                                if (nextTile) {
+                                    // 다음 타일이 현재 타일에서 나가는 방향의 반대를 받을 수 있는지 확인
+                                    if (canReceiveWater(nextTile, oppositeDir[nextOutDir])) {
+                                        if (dfs(nextR, nextC, oppositeDir[nextOutDir])) {
+                                            foundNextStep = true;
+                                            break; // 경로 발견했으니 더 이상 탐색 불필요
+                                        }
+                                    } else {
+                                        // console.log(`[PIPE TILE] (${r}, ${c}) -> (${nextR}, ${nextC}) - Next tile cannot receive water from ${oppositeDir[nextOutDir]}`);
+                                    }
+                                } else {
+                                    // console.log(`[PIPE TILE] (${r}, ${c}) -> (${nextR}, ${nextC}) - Next tile is null.`);
+                                }
+                            } else {
+                                // console.log(`[PIPE TILE] (${r}, ${c}) -> (${nextR}, ${nextC}) - Next position out of bounds.`);
+                            }
+                        }
+                    }
+                    if (foundNextStep) return true; // 다음 단계로 성공적으로 진행
+                }
+
+                // 현재 타일에서 더 이상 경로를 찾을 수 없으면 백트래킹 (경로에서 제거)
+                currentPath.pop();
+                return false;
+            }
+
+            // DFS 시작: 시작 타일(0,0)에서 물을 보내기 시작 (incomingDir는 null)
+            const pathFound = dfs(0, 0, null);
+
+            // --- 시각적 피드백 및 게임 종료 처리 ---
+            if (pathFound) {
+                $('#status').text("🎉 게임 클리어! 물이 도착지까지 완벽하게 흘렀습니다!");
+                isGameOver = true; // 게임 종료 플래그 설정
+                $('#grid').addClass('game-over'); // 그리드에 game-over 클래스 추가 (클릭 비활성화용)
+
+                // 성공 경로의 타일 하이라이트 및 물 흐름 효과 추가
+                board.flat().forEach(tile => {
+                    const isPartOfPath = currentPath.some(([pr, pc]) => pr === tile.r && pc === tile.c);
+                    if (isPartOfPath) {
+                        $(tile.el).addClass("path-highlight flowing-water");
+                    } else if (tile.type !== "start" && tile.type !== "end") {
+                         $(tile.el).addClass("no-path-highlight");
+                    }
+                });
+            } else {
+                $('#status').text("❌ 아직 물길이 완성되지 않았어요. 다시 시도해 보세요!");
+                // 방문했지만 연결 실패한 타일 하이라이트
+                board.flat().forEach(tile => {
+                    if (tile && tile.type !== "start" && tile.type !== "end") {
+                        const wasVisited = visited[tile.r][tile.c];
+                        if (wasVisited) {
+                            $(tile.el).addClass("no-path-highlight");
+                        }
+                    }
+                });
+            }
+            $('#debug_dfs_status').text(dfsStatusMessage); // DFS 결과 메시지 업데이트
+        }
+
+        // --- 디버그 정보 업데이트 함수 ---
+        function updateDebugInfo() {
+            const startTile = board[0][0];
+            const endTile = board[gridSize - 1][gridSize - 1];
+
+            if (startTile && startTile.type === "start") {
+                $('#debug_start_exitDir').text(startTile.exitDir || 'N/A');
+            } else {
+                $('#debug_start_exitDir').text('시작 타일 없음 또는 이상');
+            }
+
+            if (endTile && endTile.type === "end") {
+                $('#debug_end_entryDir').text(endTile.entryDir || 'N/A');
+            } else {
+                $('#debug_end_entryDir').text('종료 타일 없음 또는 이상');
+            }
+            $('#debug_dfs_status').text(''); // DFS 상태 초기화
+        }
+
+        // --- 초기화 및 이벤트 핸들러 ---
+        function initGame() {
+            createBoard();
+            resetTileColors(); // 혹시 모를 잔여 하이라이트 제거
+            $('#status').text("물길을 연결해 주세요!");
+        }
+
+        // DOM 로드 후 초기화 및 이벤트 바인딩
+        $(document).ready(function() {
+            initGame(); // 페이지 로드 시 게임 초기화
+
+            // 버튼 클릭 이벤트 바인딩 (jQuery 사용)
+            $('#checkPathBtn').on('click', checkPath);
+            $('#newGameBtn').on('click', initGame);
+        });
+    </script>
 </body>
 </html>
