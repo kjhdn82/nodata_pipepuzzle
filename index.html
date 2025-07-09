@@ -51,6 +51,7 @@
 
   <script>
     const gridSize = 4;
+
     const tileTypes = {
       straight: {
         icon: "━",
@@ -65,12 +66,14 @@
         connections: [["left", "down"]],
       }
     };
+
     const directions = {
       up: [-1, 0],
       down: [1, 0],
       left: [0, -1],
       right: [0, 1]
     };
+
     let board = [];
 
     function rotateDir(dir, times = 1) {
@@ -80,12 +83,12 @@
     }
 
     function getTileConnections(type, rotation) {
-      const conn = [];
+      const result = [];
       tileTypes[type].connections.forEach(pair => {
         const rotated = pair.map(d => rotateDir(d, rotation));
-        conn.push(rotated);
+        result.push(rotated);
       });
-      return conn;
+      return result;
     }
 
     function createBoard() {
@@ -132,54 +135,54 @@
       }
     }
 
+    function opposite(dir) {
+      return { up: "down", down: "up", left: "right", right: "left" }[dir];
+    }
+
     function checkPath() {
       const visited = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
 
       function dfs(r, c, fromDir = null) {
         if (r < 0 || c < 0 || r >= gridSize || c >= gridSize || visited[r][c]) return false;
         const tile = board[r][c];
-        if (!tile) return false;
         visited[r][c] = true;
 
         if (tile.type === "end") return true;
+
+        let connections = [];
+
         if (tile.type === "start") {
-          // Start: try all 4 directions
-          for (let dir of ["right", "down"]) {
-            const [dr, dc] = directions[dir];
-            if (dfs(r + dr, c + dc, opposite(dir))) return true;
-          }
-        } else {
-          const conns = getTileConnections(tile.type, tile.rotation);
-          for (let [inDir, outDir] of conns) {
-            if (fromDir && inDir !== fromDir) continue;
-            const [dr, dc] = directions[outDir];
-            const nr = r + dr;
-            const nc = c + dc;
-            const nextTile = (board[nr] || [])[nc];
-            if (!nextTile) continue;
+          connections = [["right"], ["down"]];
+        } else if (tile.type !== "end") {
+          connections = getTileConnections(tile.type, tile.rotation);
+        }
 
-            const revDir = opposite(outDir);
-            const nextConns = nextTile.type === "end"
-              ? [[revDir, "none"]] // end has no output
-              : getTileConnections(nextTile.type, nextTile.rotation);
+        for (let pair of connections) {
+          const [inDir, outDir] = pair.length === 2 ? pair : [null, pair[0]];
+          if (fromDir && inDir && inDir !== fromDir) continue;
 
-            if (nextConns.some(([inD]) => inD === revDir)) {
-              if (dfs(nr, nc, revDir)) return true;
-            }
+          const [dr, dc] = directions[outDir];
+          const nr = r + dr;
+          const nc = c + dc;
+          const nextTile = board[nr]?.[nc];
+          if (!nextTile) continue;
+
+          const nextConnections = nextTile.type === "end"
+            ? [[opposite(outDir), "none"]]
+            : getTileConnections(nextTile.type, nextTile.rotation);
+
+          if (nextConnections.some(([nextIn]) => nextIn === opposite(outDir))) {
+            if (dfs(nr, nc, opposite(outDir))) return true;
           }
         }
 
         return false;
       }
 
-      const result = dfs(0, 0);
-      document.getElementById("status").textContent = result
+      const success = dfs(0, 0);
+      document.getElementById("status").textContent = success
         ? "✅ 연결 성공! 물이 도착지까지 흘렀습니다!"
         : "❌ 아직 물길이 완성되지 않았어요.";
-    }
-
-    function opposite(dir) {
-      return { up: "down", down: "up", left: "right", right: "left" }[dir];
     }
 
     createBoard();
